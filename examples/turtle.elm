@@ -10,7 +10,7 @@ main =
 
 view computer turtle =
   [ rectangle blue computer.screen.width computer.screen.height
-  , image 96 96 "turtle.gif"
+  , image 96 96 "images/turtle.gif"
       |> move turtle.x turtle.y
       |> rotate turtle.angle
   , words white (String.fromFloat turtle.angle)

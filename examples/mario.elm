@@ -34,11 +34,11 @@ view computer mario =
 
 toGif mario =
   if mario.y > 0 then
-    "mario/jump/" ++ mario.dir ++ ".gif"
+    "images/mario/jump/" ++ mario.dir ++ ".gif"
   else if mario.vx /= 0 then
-    "mario/walk/" ++ mario.dir ++ ".gif"
+    "images/mario/walk/" ++ mario.dir ++ ".gif"
   else
-    "mario/stand/" ++ mario.dir ++ ".gif"
+    "images/mario/stand/" ++ mario.dir ++ ".gif"
 
 
 
