@@ -104,13 +104,30 @@ import Task
 -- PICTURE
 
 
-picture : List Shape -> Program () () ()
+picture : List Shape -> Program () Screen (Int, Int)
 picture shapes =
+  let
+    init () =
+      (toScreen 600 600, Cmd.none)
+
+    view screen =
+      { title = "Playground"
+      , body = [ render screen shapes ]
+      }
+
+    update (width,height) _ =
+      ( toScreen (toFloat width) (toFloat height)
+      , Cmd.none
+      )
+
+    subscriptions _ =
+      E.onResize Tuple.pair
+  in
   Browser.document
-    { init = \_ -> ((), Cmd.none)
-    , view = \_ -> { title = "Playground", body = [ render (toScreen 400 400) shapes ] }
-    , update = \_ _ -> ((), Cmd.none)
-    , subscriptions = \_ -> Sub.none
+    { init = init
+    , view = view
+    , update = update
+    , subscriptions = subscriptions
     }
 
 
