@@ -6,7 +6,7 @@ import Playground exposing (..)
 
 
 main =
-  animation view update
+  game view update
     { x = 0
     , y = 0
     , vx = 0

@@ -2,7 +2,7 @@ import Playground exposing (..)
 
 
 main =
-  animation view update
+  game view update
     { x = 0
     , y = 0
     , angle = 0
@@ -13,9 +13,6 @@ view computer turtle =
   , image 96 96 "images/turtle.gif"
       |> move turtle.x turtle.y
       |> rotate turtle.angle
-  , words white (String.fromFloat turtle.angle)
-      |> scale 8
-      |> rotate 45
   ]
 
 update computer turtle =

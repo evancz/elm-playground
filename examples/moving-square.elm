@@ -2,7 +2,7 @@ import Playground exposing (..)
 
 
 main =
-  animation view update (0,0)
+  game view update (0,0)
 
 view computer (x,y) =
   [ square blue 40
