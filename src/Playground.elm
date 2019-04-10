@@ -1,5 +1,7 @@
 module Playground exposing
   ( picture
+  , animation
+  , game
   --
   , Shape
   , circle, oval
@@ -13,18 +15,18 @@ module Playground exposing
   --
   , Number
   --
-  , animation
+  , Clock
+  , zigzag
+  , wave
+  , spin
   --
   , Computer
-  --
   , Mouse
-  --
+  , Screen
   , Keyboard
   , toX
   , toY
   , toXY
-  --
-  , Screen
   --
   , Color
   , red, orange, yellow, green, blue, purple, brown
@@ -37,8 +39,8 @@ module Playground exposing
 
 {-|
 
-# Pictures
-@docs picture
+# Playgrounds
+@docs picture, animation, game
 
 # Shapes
 @docs Shape, circle, oval, square, rectangle, triangle, pentagon, hexagon, octagon, polygon
@@ -53,22 +55,19 @@ module Playground exposing
 @docs move, moveUp, moveDown, moveLeft, moveRight, moveX, moveY
 
 # Customize Shapes
-@docs scale, rotate, fade, group
+@docs scale, rotate, fade
 
-# Animation
-@docs animation, Computer
+# Groups
+@docs group
 
-# Mouse
-@docs Mouse
+# Clock
+@docs Clock, zigzag, wave, spin
 
-# Keyboard
-@docs Keyboard, toX, toY, toXY
-
-# Screen
-@docs Screen
+# Computer
+@docs Computer, Mouse, Screen, Keyboard, toX, toY, toXY
 
 # Colors
-@docs Color, red, orange, yellow, green, blue, purple, brown
+@docs Color, rgb, red, orange, yellow, green, blue, purple, brown
 
 ### Light Colors
 @docs lightRed, lightOrange, lightYellow, lightGreen, lightBlue, lightPurple, lightBrown
@@ -78,9 +77,6 @@ module Playground exposing
 
 ### Shades of Grey
 @docs white, lightGrey, grey, darkGrey, lightCharcoal, charcoal, darkCharcoal, black
-
-### Custom Colors
-@docs rgb
 
 ### Alternate Spellings of Gray
 @docs lightGray, gray, darkGray
@@ -98,12 +94,25 @@ import Svg.Attributes exposing (..)
 import Json.Decode as D
 import Set
 import Task
+import Time
 
 
 
 -- PICTURE
 
 
+{-| Make a picture! Here is a picture of a triangle with an eyeball:
+
+    import Playground exposing (..)
+
+    main =
+      picture
+        [ triangle green 150
+        , circle white 40
+        , circle black 10
+        ]
+
+-}
 picture : List Shape -> Program () Screen (Int, Int)
 picture shapes =
   let
@@ -139,6 +148,7 @@ type alias Computer =
   { mouse : Mouse
   , keyboard : Keyboard
   , screen : Screen
+  , clock : Clock
   }
 
 
@@ -217,45 +227,78 @@ type alias Screen =
 
 
 
-{-- CLOCK
+-- CLOCK
 
 
 type Clock = Clock Time.Posix
 
 
 zigzag : Number -> Number -> Number -> Clock -> Number
-zigzag period lo hi (Clock posix) =
+zigzag period lo hi clock =
+  lo + (hi - lo) * abs (2 * toFrac period clock - 1)
 
 
 wave : Number -> Number -> Number -> Clock -> Number
-wave period lo hi (Clock posix) =
+wave period lo hi clock =
+  lo + (hi - lo) * (1 + cos (turns (toFrac period clock))) / 2
 
 
--}
+spin : Number -> Clock -> Number
+spin period clock =
+  360 * toFrac period clock
+
+
+toFrac : Float -> Clock -> Float
+toFrac period (Clock posix) =
+  let
+    ms = Time.posixToMillis posix
+    p = period * 1000
+  in
+  toFloat (modBy (round p) ms) / p
 
 
 -- ANIMATION
 
 
-animation : (Computer -> memory -> List Shape) -> (Computer -> memory -> memory) -> memory -> Program () (Model memory) Msg
-animation viewMemory updateMemory initialMemory =
+{-| Create an animation!
+
+Once you get comfortable using [`picture`](#picture) to layout shapes, you can
+try out an `animation`. Here is square that zigzags back and forth:
+
+    import Playground exposing (..)
+
+    main =
+      animation view
+
+    view clock =
+      [ square blue 40
+          |> moveX (zigzag 2 -100 100 clock)
+      ]
+
+We need to define a `view` to make our animation work.
+
+Within `view` we can use functions like [`zigzag`](#zigzag), [`wave`](#wave),
+and [`spin`](#spin) to help us move and rotate our shapes.
+-}
+animation : (Clock -> List Shape) -> Program () Animation Msg
+animation viewClock =
   let
     init () =
-      ( Model E.Visible initialMemory initialComputer
+      ( Animation E.Visible (toScreen 600 600) (Clock (Time.millisToPosix 0))
       , Task.perform GotViewport Dom.getViewport
       )
 
-    view (Model _ memory computer) =
+    view (Animation _ screen clock) =
       { title = "Playground"
-      , body = [ render computer.screen (viewMemory computer memory) ]
+      , body = [ render screen (viewClock clock) ]
       }
 
     update msg model =
-      ( animationUpdate updateMemory msg model
+      ( animationUpdate msg model
       , Cmd.none
       )
 
-    subscriptions (Model visibility _ _) =
+    subscriptions (Animation visibility _ _) =
       case visibility of
         E.Hidden ->
           E.onVisibilityChange VisibilityChanged
@@ -271,11 +314,130 @@ animation viewMemory updateMemory initialMemory =
     }
 
 
+type Animation =
+  Animation E.Visibility Screen Clock
+
+
+animationSubscriptions : Sub Msg
+animationSubscriptions =
+  Sub.batch
+    [ E.onResize Resized
+    , E.onAnimationFrame Tick
+    , E.onVisibilityChange VisibilityChanged
+    ]
+
+
+animationUpdate : Msg -> Animation -> Animation
+animationUpdate msg (Animation vis screen clock as state) =
+  case msg of
+    Tick time              -> Animation vis screen (Clock time)
+    VisibilityChanged visi -> Animation visi screen clock
+    GotViewport {viewport} -> Animation vis (toScreen viewport.width viewport.height) clock
+    Resized w h            -> Animation vis (toScreen (toFloat w) (toFloat h)) clock
+    KeyChanged _ _         -> state
+    MouseMove _ _          -> state
+    MouseClick             -> state
+    MouseButton _          -> state
+
+
+
+-- GAME
+
+
+{-| Create a game!
+
+Once you get comfortable with [`animation`](#animation), you can try making a
+game with the keyboard and mouse. Here is an example of a green square that
+just moves to the right:
+
+    import Playground exposing (..)
+
+    main =
+      game view update 0
+
+    view computer offset =
+      [ square green 40
+          |> moveRight offset
+      ]
+
+    update computer offset =
+      offset + 0.03
+
+This shows the three important parts of a game:
+
+1. `memory` - makes it possible to store information. So with our green square,
+we save the `offset` in memory. It starts out at `0`.
+2. `view` - lets us say which shapes to put on screen. So here we move our
+square right by the `offset` saved in memory.
+3. `update` - lets us update the memory. We are incrementing the `offset` by
+a tiny amount on each frame.
+
+The `update` function is called about 60 times per second, so our little
+changes to `offset` start to add up pretty quickly!
+
+This game is not very fun though! Making a `game` also gives you access to the
+[`Computer`](#Computer), so you can use information about the [`Mouse`](#Mouse)
+and [`Keyboard`](#Keyboard) to make it interactive! So here is a red square that
+moves based on the arrow keys:
+
+    import Playground exposing (..)
+
+    main =
+      game view update (0,0)
+
+    view computer (x,y) =
+      [ square red 40
+          |> move x y
+      ]
+
+    update computer (x,y) =
+      ( x + toX computer.keyboard
+      , y + toY computer.keyboard
+      )
+
+Notice that in the `update` we use information from the keyboard to update the
+`x` and `y` values. These building blocks let you make pretty fancy games!
+-}
+game : (Computer -> memory -> List Shape) -> (Computer -> memory -> memory) -> memory -> Program () (Game memory) Msg
+game viewMemory updateMemory initialMemory =
+  let
+    init () =
+      ( Game E.Visible initialMemory initialComputer
+      , Task.perform GotViewport Dom.getViewport
+      )
+
+    view (Game _ memory computer) =
+      { title = "Playground"
+      , body = [ render computer.screen (viewMemory computer memory) ]
+      }
+
+    update msg model =
+      ( gameUpdate updateMemory msg model
+      , Cmd.none
+      )
+
+    subscriptions (Game visibility _ _) =
+      case visibility of
+        E.Hidden ->
+          E.onVisibilityChange VisibilityChanged
+
+        E.Visible ->
+          gameSubscriptions
+  in
+  Browser.document
+    { init = init
+    , view = view
+    , update = update
+    , subscriptions = subscriptions
+    }
+
+
 initialComputer : Computer
 initialComputer =
   { mouse = Mouse 0 0 False False
   , keyboard = emptyKeyboard
   , screen = toScreen 600 600
+  , clock = Clock (Time.millisToPosix 0)
   }
 
 
@@ -283,13 +445,13 @@ initialComputer =
 -- SUBSCRIPTIONS
 
 
-animationSubscriptions : Sub Msg
-animationSubscriptions =
+gameSubscriptions : Sub Msg
+gameSubscriptions =
   Sub.batch
     [ E.onResize Resized
     , E.onKeyUp (D.map (KeyChanged False) (D.field "key" D.string))
     , E.onKeyDown (D.map (KeyChanged True) (D.field "key" D.string))
-    , E.onAnimationFrame (\_ -> Tick)
+    , E.onAnimationFrame Tick
     , E.onVisibilityChange VisibilityChanged
     , E.onClick (D.succeed MouseClick)
     , E.onMouseDown (D.succeed (MouseButton True))
@@ -299,16 +461,16 @@ animationSubscriptions =
 
 
 
--- ANIMATION HELPERS
+-- GAME HELPERS
 
 
-type Model memory =
-  Model E.Visibility memory Computer
+type Game memory =
+  Game E.Visibility memory Computer
 
 
 type Msg
   = KeyChanged Bool String
-  | Tick
+  | Tick Time.Posix
   | GotViewport Dom.Viewport
   | Resized Int Int
   | VisibilityChanged E.Visibility
@@ -317,39 +479,39 @@ type Msg
   | MouseButton Bool
 
 
-animationUpdate : (Computer -> memory -> memory) -> Msg -> Model memory -> Model memory
-animationUpdate updateMemory msg (Model vis memory computer) =
+gameUpdate : (Computer -> memory -> memory) -> Msg -> Game memory -> Game memory
+gameUpdate updateMemory msg (Game vis memory computer) =
   case msg of
-    Tick ->
-      Model vis (updateMemory computer memory) <|
+    Tick time ->
+      Game vis (updateMemory computer memory) <|
         if computer.mouse.click
-        then { computer | mouse = mouseClick False computer.mouse }
-        else computer
+        then { computer | clock = Clock time, mouse = mouseClick False computer.mouse }
+        else { computer | clock = Clock time }
 
     GotViewport {viewport} ->
-      Model vis memory { computer | screen = toScreen viewport.width viewport.height }
+      Game vis memory { computer | screen = toScreen viewport.width viewport.height }
 
     Resized w h ->
-      Model vis memory { computer | screen = toScreen (toFloat w) (toFloat h) }
+      Game vis memory { computer | screen = toScreen (toFloat w) (toFloat h) }
 
     KeyChanged isDown key ->
-      Model vis memory { computer | keyboard = updateKeyboard isDown key computer.keyboard }
+      Game vis memory { computer | keyboard = updateKeyboard isDown key computer.keyboard }
 
     MouseMove pageX pageY ->
       let
         x = computer.screen.left + pageX
         y = computer.screen.top - pageY
       in
-      Model vis memory { computer | mouse = mouseMove x y computer.mouse }
+      Game vis memory { computer | mouse = mouseMove x y computer.mouse }
 
     MouseClick ->
-      Model vis memory { computer | mouse = mouseClick True computer.mouse }
+      Game vis memory { computer | mouse = mouseClick True computer.mouse }
 
     MouseButton isDown ->
-      Model vis memory { computer | mouse = mouseDown isDown computer.mouse }
+      Game vis memory { computer | mouse = mouseDown isDown computer.mouse }
 
     VisibilityChanged visibility ->
-      Model visibility memory
+      Game visibility memory
         { computer
             | keyboard = emptyKeyboard
             , mouse = Mouse computer.mouse.x computer.mouse.y False False
@@ -433,6 +595,11 @@ updateKeyboard isDown key keyboard =
 -- SHAPES
 
 
+{-| Shapes help you make a `picture`, `animation`, or `game`.
+
+Read on to see examples of [`circle`](#circle), [`rectangle`](#rectangle),
+[`words`](#words), [`image`](#image), and many more!
+-}
 type Shape =
   Shape
     Number -- x
@@ -454,61 +621,216 @@ type Form
   | Group (List Shape)
 
 
+{-| Make circles:
+
+    dot = circle red 10
+    sun = circle yellow 300
+
+You give a color and then the radius. So the higher the number, the larger
+the circle.
+-}
 circle : Color -> Number -> Shape
 circle color radius =
   Shape 0 0 0 1 1 (Circle color radius)
 
 
+{-| Make ovals:
+
+    football = oval brown 200 100
+
+You give the color, and then the width and height. So our `football` example
+is 200 pixels wide and 100 pixels tall.
+-}
 oval : Color -> Number -> Number -> Shape
 oval color width height =
   Shape 0 0 0 1 1 (Oval color width height)
 
 
+{-| Make squares. Here are two squares combined to look like an empty box:
+
+    import Playground exposing (..)
+
+    main =
+      picture
+        [ square purple 80
+        , square white 60
+        ]
+
+The number you give is the dimension of each side. So that purple square would
+be 80 pixels by 80 pixels.
+-}
 square : Color -> Number -> Shape
 square color n =
   Shape 0 0 0 1 1 (Rectangle color n n)
 
 
+{-| Make rectangles. This example makes a red cross:
+
+    import Playground exposing (..)
+
+    main =
+      picture
+        [ rectangle red 20 60
+        , rectangle red 60 20
+        ]
+
+You give the color, width, and then height. So the first shape is vertical
+part of the cross, the thinner and taller part.
+-}
 rectangle : Color -> Number -> Number -> Shape
 rectangle color width height =
   Shape 0 0 0 1 1 (Rectangle color width height)
 
 
+{-| Make triangles. So if you wanted to draw the Egyptian pyramids, you could
+do a simple version like this:
+
+    import Playground exposing (..)
+
+    main =
+      picture
+        [ triangle darkYellow 200
+        ]
+
+The number is the "radius", so the distance from the center to each point of
+the pyramid is `200`. Pretty big!
+-}
 triangle : Color -> Number -> Shape
 triangle color radius =
   Shape 0 0 0 1 1 (Ngon color 3 radius)
 
 
+{-| Make pentagons:
+
+    import Playground exposing (..)
+
+    main =
+      picture
+        [ pentagon darkGrey 100
+        ]
+
+You give the color and then the radius. So the distance from the center to each
+of the five points is 100 pixels.
+-}
 pentagon : Color -> Number -> Shape
 pentagon color radius =
   Shape 0 0 0 1 1 (Ngon color 5 radius)
 
 
+{-| Make hexagons:
+
+    import Playground exposing (..)
+
+    main =
+      picture
+        [ hexagon lightYellow 50
+        ]
+
+The number is the radius, the distance from the center to each point.
+
+If you made more hexagons, you could [`move`](#move) them around to make a
+honeycomb pattern!
+-}
 hexagon : Color -> Number -> Shape
 hexagon color radius =
   Shape 0 0 0 1 1 (Ngon color 6 radius)
 
 
+{-| Make octogons:
+
+  import Playground exposing (..)
+
+  main =
+    picture
+      [ octagon red 100
+      ]
+
+You give the color and radius, so each point of this stop sign is 100 pixels
+from the center.
+-}
 octagon : Color -> Number -> Shape
 octagon color radius =
   Shape 0 0 0 1 1 (Ngon color 8 radius)
 
 
+{-| Make any shape you want! Here is a very thin triangle:
+
+    import Playground exposing (..)
+
+    main =
+      picture
+        [ polygon [ (-10,-20), (0,100), (10,-20) ]
+        ]
+
+**Note:** If you [`rotate`](#rotate) a polygon, it will always rotate around
+`(0,0)`. So it is best to build your shapes around that point, and then use
+[`move`](#move) or [`group`](#group) so that rotation makes more sense.
+-}
 polygon : Color -> List (Number, Number) -> Shape
 polygon color points =
   Shape 0 0 0 1 1 (Polygon color points)
 
 
+{-| Add some image from the internet:
+
+    import Playground exposing (..)
+
+    main =
+      picture
+        [ image 96 96 "https://elm-lang.org/assets/turtle.gif"
+        ]
+
+You provide the width, height, and then the URL of the image you want to show.
+-}
 image : Number -> Number -> String -> Shape
 image w h src =
   Shape 0 0 0 1 1 (Image w h src)
 
 
+{-| Show some words!
+
+    import Playground exposing (..)
+
+    main =
+      picture
+        [ words black "Hello! How are you?"
+        ]
+
+You can use [`scale`](#scale) to make the words bigger or smaller.
+-}
 words : Color -> String -> Shape
 words color string =
   Shape 0 0 0 1 1 (Words color string)
 
 
+{-| Put shapes together so you can [`move`](#move) and [`rotate`](#rotate)
+them as a group. Maybe you want to put a bunch of stars in the sky:
+
+    import Playground exposing (..)
+
+    main =
+      picture
+        [ star
+            |> move 100 100
+            |> rotate 5
+        , star
+            |> move -120 40
+            |> rotate 20
+        , star
+            |> move 80 -150
+            |> rotate 32
+        , star
+            |> move -90 -30
+            |> rotate -16
+        ]
+
+    star =
+      group
+        [ triangle yellow 20
+        , triangle yellow 20
+            |> rotate 180
+        ]
+-}
 group : List Shape -> Shape
 group shapes =
   Shape 0 0 0 1 1 (Group shapes)
@@ -518,51 +840,189 @@ group shapes =
 -- TRANSFORMS
 
 
+{-| Move a shape by some number of pixels:
+
+    import Playground exposing (..)
+
+    main =
+      picture
+        [ square red 100
+            |> move -60 60
+        , square yellow 100
+            |> move 60 60
+        , square green 100
+            |> move 60 -60
+        , square blue 100
+            |> move -60 -60
+        ]
+-}
 move : Number -> Number -> Shape -> Shape
 move dx dy (Shape x y a s o f) =
   Shape (x + dx) (y + dy) a s o f
 
 
+{-| Move a shape up by some number of pixels. So if you wanted to make a tree
+you could move the leaves up above the trunk:
+
+    import Playground exposing (..)
+
+    main =
+      picture
+        [ rectangle brown 40 200
+        , circle green 100
+            |> moveUp 180
+        ]
+-}
 moveUp : Number -> Shape -> Shape
 moveUp =
   moveY
 
 
+{-| Move a shape down by some number of pixels. So if you wanted to put the sky
+above the ground, you could move the sky up and the ground down:
+
+    import Playground exposing (..)
+
+    main =
+      picture
+        [ rectangle lightBlue 200 100
+            |> moveUp 50
+        , rectangle lightGreen 200 100
+            |> moveDown 50
+        ]
+-}
 moveDown : Number -> Shape -> Shape
 moveDown dy (Shape x y a s o f) =
   Shape x (y - dy) a s o f
 
 
+{-| Move shapes to the left.
+
+    import Playground exposing (..)
+
+    main =
+      picture
+        [ circle yellow 10
+            |> moveLeft 80
+            |> moveUp 30
+        ]
+-}
 moveLeft : Number -> Shape -> Shape
 moveLeft dx (Shape x y a s o f) =
   Shape (x - dx) y a s o f
 
 
+{-| Move shapes to the right.
+
+    import Playground exposing (..)
+
+    main =
+      picture
+        [ square purple 20
+            |> moveRight 80
+            |> moveDown 100
+        ]
+-}
 moveRight : Number -> Shape -> Shape
 moveRight =
   moveX
 
 
+{-| Move the `x` coordinate of a shape by some amount. Here is a square that
+moves back and forth:
+
+    import Playground exposing (..)
+
+    main =
+      animation view
+
+    view clock =
+      [ square purple 20
+          |> moveX (wave 4 -200 200 clock)
+      ]
+
+Using `moveX` feels a bit nicer here because the movement may be positive or negative.
+-}
 moveX : Number -> Shape -> Shape
 moveX dx (Shape x y a s o f) =
   Shape (x + dx) y a s o f
 
 
+{-| Move the `y` coordinate of a shape by some amount. Maybe you want to make
+grass along the bottom of the screen:
+
+    import Playground exposing (..)
+
+    main =
+      game view update 0
+
+    update computer memory =
+      memory
+
+    view computer count =
+      [ rectangle green computer.screen.width 100
+          |> moveY computer.screen.bottom
+      ]
+
+Using `moveY` feels a bit nicer when setting things relative to the bottom or
+top of the screen, since the values are negative sometimes.
+-}
 moveY : Number -> Shape -> Shape
 moveY dy (Shape x y a s o f) =
   Shape x (y + dy) a s o f
 
 
+{-| Make a shape bigger or smaller. So if you wanted some [`words`](#words) to
+be larger, you could say:
+
+    import Playground exposing (..)
+
+    main =
+      picture
+        [ words black "Hello, nice to see you!"
+            |> scale 3
+        ]
+-}
 scale : Number -> Shape -> Shape
 scale ns (Shape x y a s o f) =
   Shape x y a (s * ns) o f
 
 
+{-| Rotate shapes in degrees.
+
+    import Playground exposing (..)
+
+    main =
+      picture
+        [ words black "These words are tilted!"
+            |> rotate 10
+        ]
+
+The degrees go **counter-clockwise** to match the direction of the
+[unit circle](https://en.wikipedia.org/wiki/Unit_circle).
+-}
 rotate : Number -> Shape -> Shape
 rotate da (Shape x y a s o f) =
   Shape x y (a + da) s o f
 
 
+{-| Fade a shape. This lets you make shapes see-through or even completely
+invisible. Here is a shape that fades in and out:
+
+    import Playground exposing (..)
+
+    main =
+      animation view
+
+    view clock =
+      [ square orange 30
+      , square blue 200
+          |> fade (zigzag 3 0 1 clock)
+      ]
+
+The number has to be between `0` and `1`, where `0` is totally transparent
+and `1` is completely solid.
+-}
 fade : Number -> Shape -> Shape
 fade o (Shape x y a s _ f) =
   Shape x y a s o f
@@ -782,8 +1242,6 @@ darkGray =
 
 
 
-
-
 -- CUSTOM COLORS
 
 
@@ -793,6 +1251,8 @@ color you want. For example:
     brightBlue = rgb 18 147 216
     brightGreen = rgb 119 244 8
     brightPurple = rgb 94 28 221
+
+Each number needs to be between 0 and 255.
 
 It can be hard to figure out what numbers to pick, so try using a color picker
 like [paletton][] to find colors that look nice together. Once you find nice
@@ -843,33 +1303,30 @@ renderShape hw hh (Shape realX realY a s alpha form) =
   case form of
     Circle c sr ->
       Svg.circle
-        (  cx (String.fromFloat sx)
-        :: cy (String.fromFloat sy)
-        :: r  (String.fromFloat sr)
+        (  r  (String.fromFloat sr)
         :: fill (renderColor c)
-        :: addAlpha alpha (renderTransform sx sy a s)
+        :: transform (renderTransform sx sy a s)
+        :: renderAlpha alpha
         )
         []
 
     Oval c w h ->
       ellipse
-        (  cx (String.fromFloat sx)
-        :: cy (String.fromFloat sy)
-        :: rx (String.fromFloat (w / 2))
+        (  rx (String.fromFloat (w / 2))
         :: ry (String.fromFloat (h / 2))
         :: fill (renderColor c)
-        :: addAlpha alpha (renderTransform sx sy a s)
+        :: transform (renderTransform sx sy a s)
+        :: renderAlpha alpha
         )
         []
 
     Rectangle c w h ->
       rect
-        (  x (String.fromFloat (sx - w / 2))
-        :: y (String.fromFloat (sy - h / 2))
-        :: width (String.fromFloat w)
+        (  width (String.fromFloat w)
         :: height (String.fromFloat h)
         :: fill (renderColor c)
-        :: addAlpha alpha (renderTransform sx sy a s)
+        :: transform (renderRectTransform w h sx sy a s)
+        :: renderAlpha alpha
         )
         []
 
@@ -877,7 +1334,8 @@ renderShape hw hh (Shape realX realY a s alpha form) =
       Svg.polygon
         (  points (toNgonPoints 0 n r "")
         :: fill (renderColor c)
-        :: addAlpha alpha (renderTransform sx sy a s)
+        :: transform (renderTransform sx sy a s)
+        :: renderAlpha alpha
         )
         []
 
@@ -885,35 +1343,35 @@ renderShape hw hh (Shape realX realY a s alpha form) =
       Svg.polygon
         (  points (List.foldl addPoint "" ps)
         :: fill (renderColor c)
-        :: addAlpha alpha (renderTransform sx sy a s)
+        :: transform (renderTransform sx sy a s)
+        :: renderAlpha alpha
         )
         []
 
     Image w h src ->
       Svg.image
         (  xlinkHref src
-        :: x (String.fromFloat (sx - w / 2))
-        :: y (String.fromFloat (sy - h / 2))
         :: width (String.fromFloat w)
         :: height (String.fromFloat h)
-        :: addAlpha alpha (renderTransform sx sy a s)
+        :: transform (renderRectTransform w h sx sy a s)
+        :: renderAlpha alpha
         )
         []
 
     Words color string ->
       text_
-        (  x (String.fromFloat sx)
-        :: y (String.fromFloat sy)
-        :: textAnchor "middle"
+        (  textAnchor "middle"
         :: dominantBaseline "central"
         :: fill (renderColor color)
-        :: addAlpha alpha (renderTransform sx sy a s)
+        :: transform (renderTransform sx sy a s)
+        :: renderAlpha alpha
         )
         [ text string
         ]
 
     Group shapes ->
-      g (addAlpha alpha (renderGroupTransform sx sy a s)) (List.map (renderShape hw hh) shapes)
+      g (transform (renderTransform sx sy a s) :: renderAlpha alpha)
+        (List.map (renderShape hw hh) shapes)
 
 
 
@@ -931,81 +1389,43 @@ renderColor color =
 
 
 
--- ADD ALPHA
+-- RENDER ALPHA
 
 
-addAlpha : Number -> List (Svg.Attribute msg) -> List (Svg.Attribute msg)
-addAlpha alpha attrs =
+renderAlpha : Number -> List (Svg.Attribute msg)
+renderAlpha alpha =
   if alpha == 1 then
-    attrs
+    []
   else
-    opacity (String.fromFloat (clamp 0 1 alpha)) :: attrs
+    [ opacity (String.fromFloat (clamp 0 1 alpha)) ]
 
 
 
 -- RENDER TRANFORMS
 
 
-renderTransform : Number -> Number -> Number -> Number -> List (Svg.Attribute msg)
+renderTransform : Number -> Number -> Number -> Number -> String
 renderTransform x y a s =
   if a == 0 then
     if s == 1 then
-      []
+      "translate(" ++ String.fromFloat x ++ "," ++ String.fromFloat y ++ ")"
     else
-      [ transform (openScale s ++ close x y) ]
+      "translate(" ++ String.fromFloat x ++ "," ++ String.fromFloat y ++ ") scale(" ++ String.fromFloat s ++ ")"
   else
     if s == 1 then
-      [ transform (openRotate a ++ close x y) ]
+      "translate(" ++ String.fromFloat x ++ "," ++ String.fromFloat y ++ ") rotate(" ++ String.fromFloat -a ++ ")"
     else
-      let closer = close x y in
-      [ transform (openScale s ++ closer ++ " " ++ openRotate a ++ closer) ]
-
-
-openScale : Number -> String
-openScale s =
- "scale(" ++ String.fromFloat s
-
-
-openRotate : Number -> String
-openRotate a =
-  "rotate(" ++ String.fromFloat -a
-
-
-close : Number -> Number -> String
-close x y =
-  if x == 0 && y == 0 then
-    ")"
-  else
-    " " ++ String.fromFloat x
-    ++ "," ++ String.fromFloat y
-    ++ ")"
+      "translate(" ++ String.fromFloat x ++ "," ++ String.fromFloat y ++ ") rotate(" ++ String.fromFloat -a ++ ") scale(" ++ String.fromFloat s ++ ")"
 
 
 
--- RENDER GROUP TRANSFORM
+-- RENDER RECT TRANSFORM
 
 
-renderGroupTransform : Number -> Number -> Number -> Number -> List (Svg.Attribute msg)
-renderGroupTransform x y a s =
-  if x == 0 && y == 0 then
-    renderTransform x y a s
-  else
-    let
-      closer = String.fromFloat x ++ "," ++ String.fromFloat y ++ ")"
-      translate = "translate(" ++ closer
-    in
-    [ transform <|
-        if a == 0 then
-          if s == 1 then
-            translate
-          else
-            translate ++ " " ++ openScale s ++ " " ++ closer
-        else
-          if s == 1 then
-            translate ++ " " ++ openRotate a ++ " " ++ closer
-          else
-            translate ++ " " ++ openScale s ++ " " ++ closer ++ " " ++ openRotate a ++ " " ++ closer
-    ]
+renderRectTransform : Number -> Number -> Number -> Number -> Number -> Number -> String
+renderRectTransform w h x y a s =
+  renderTransform x y a s
+  ++ " translate(" ++ String.fromFloat (-w/2) ++ "," ++ String.fromFloat (-h/2) ++ ")"
 
 
 
@@ -1023,7 +1443,7 @@ toNgonPoints i n r string =
     string
   else
     let
-      a = turns (toFloat i / toFloat n)
+      a = turns (toFloat i / toFloat n - 0.25)
       x = r * cos a
       y = r * sin a
     in
