@@ -28,7 +28,7 @@ view computer mario =
   , rectangle (rgb 74 163 41) w 100
       |> moveY b
   , image 70 70 (toGif mario)
-      |> move mario.x (b + mario.y + 76)
+      |> move mario.x (b + 76 + mario.y)
   ]
 
 
