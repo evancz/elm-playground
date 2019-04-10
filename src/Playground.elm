@@ -171,7 +171,36 @@ type alias Number = Float
 -- KEYBOARD
 
 
--- https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key/Key_Values
+{-| Figure out what is going on with the keyboard.
+
+If someone is pressing the UP and RIGHT arrows, you will see a value like this:
+
+    { up = True, down = False, left = False, right = True
+    , space = False, enter = False, shift = False, backspace = False
+    , keys = Set.fromList ["ArrowUp","ArrowRight"]
+    }
+
+So if you want to move a character based on arrows, you could write an update
+like this:
+
+    update computer y =
+      if computer.keyboard.up then
+        y + 1
+      else
+        y
+
+Check out [`toX`](#toX) and [`toY`](#toY) which make this even easier!
+
+**Note:** The `keys` set will be filled with the name of all keys which are
+down right now. So you will see things like `"a"`, `"b"`, `"c"`, `"1"`, `"2"`,
+`"Space"`, and `"Control"` in there. Check out [this list][list] to see the
+names used for all the different special keys! From there, you can use
+[`Set.member`][member] to check for whichever key you want. E.g.
+`Set.member "Control" computer.keyboard.keys`.
+
+[list]: https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key/Key_Values
+[member]: /packages/elm/core/latest/Set#member
+-}
 type alias Keyboard =
   { up : Bool
   , down : Bool
@@ -185,16 +214,94 @@ type alias Keyboard =
   }
 
 
+{-| Turn the LEFT and RIGHT arrows into a number.
+
+    toX { left = False, right = False, ... } == 0
+    toX { left = True , right = False, ... } == -1
+    toX { left = False, right = True , ... } == 1
+    toX { left = True , right = True , ... } == 0
+
+So to make a square move left and right based on the arrow keys, we could say:
+
+    import Playground exposing (..)
+
+    main =
+      game view update 0
+
+    view computer x =
+      [ square green 40
+          |> moveX x
+      ]
+
+    update computer x =
+      x + toX computer.keyboard
+
+-}
 toX : Keyboard -> Number
 toX keyboard =
   (if keyboard.right then 1 else 0) - (if keyboard.left then 1 else 0)
 
 
+{-| Turn the UP and DOWN arrows into a number.
+
+    toY { up = False, down = False, ... } == 0
+    toY { up = True , down = False, ... } == 1
+    toY { up = False, down = True , ... } == -1
+    toY { up = True , down = True , ... } == 0
+
+This can be used to move characters around in games just like [`toX`](#toX):
+
+    import Playground exposing (..)
+
+    main =
+      game view update (0,0)
+
+    view computer (x,y) =
+      [ square blue 40
+          |> move x y
+      ]
+
+    update computer (x,y) =
+      ( x + toX computer.keyboard
+      , y + toY computer.keyboard
+      )
+
+-}
 toY : Keyboard -> Number
 toY keyboard =
   (if keyboard.up then 1 else 0) - (if keyboard.down then 1 else 0)
 
 
+{-| If you just use `toX` and `toY`, you will move diagonal too fast. You will go
+right at 1 pixel per update, but you will go up/right at 1.41421 pixels per
+update.
+
+So `toXY` turns the arrow keys into an `(x,y)` pair such that the distance is
+normalized:
+
+    toXY { up = True , down = False, left = False, right = False, ... } == (1, 0)
+    toXY { up = True , down = False, left = False, right = True , ... } == (0.707, 0.707)
+    toXY { up = False, down = False, left = False, right = True , ... } == (0, 1)
+
+Now when you go up/right, you are still going 1 pixel per update.
+
+    import Playground exposing (..)
+
+    main =
+      game view update (0,0)
+
+    view computer (x,y) =
+      [ square green 40
+          |> move x y
+      ]
+
+    update computer (x,y) =
+      let
+        (dx,dy) = toXY computer.keyboard
+      in
+      (x + dx, y + dy)
+
+-}
 toXY : Keyboard -> (Number, Number)
 toXY keyboard =
   let
@@ -202,7 +309,7 @@ toXY keyboard =
     y = toY keyboard
   in
   if x /= 0 && y /= 0 then
-    (x * squareRootOfTwo, y * squareRootOfTwo)
+    (x / squareRootOfTwo, y / squareRootOfTwo)
   else
     (x,y)
 
@@ -216,6 +323,20 @@ squareRootOfTwo =
 -- SCREEN
 
 
+{-| Get the dimensions of the screen. If the screen is 800 by 600, you will see
+a value like this:
+
+    { width = 800
+    , height = 600
+    , top = 300
+    , left = -400
+    , right = 400
+    , bottom = -300
+    }
+
+This can be nice when used with [`moveY`](#moveY) if you want to put something
+on the bottom of the screen, no matter the dimensions.
+-}
 type alias Screen =
   { width : Number
   , height : Number
