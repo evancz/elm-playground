@@ -39,7 +39,9 @@ view clock =
   ]
 ```
 
-You can do a lot with `wave`, `zigzag`, and `spin`. Maybe try making a car with spinning octogons as wheels!
+It will do a full spin every 8 seconds.
+
+Maybe try making a car with spinning octogons as wheels? Try using `wave` to move things back-and-forth? Try using `zigzag` to fade things in-and-out?
 
 
 ## Games
