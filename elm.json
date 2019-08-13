@@ -1,7 +1,7 @@
 {
     "type": "package",
     "name": "evancz/elm-playground",
-    "summary": "Playground for 2D graphics and games",
+    "summary": "Playground for 2D graphics, animations, and games",
     "license": "BSD-3-Clause",
     "version": "1.0.0",
     "exposed-modules": [
