@@ -1414,7 +1414,8 @@ render screen shapes =
     (List.map (renderShape hw hh) shapes)
 
 
-
+-- TODO try adding Svg.Lazy to renderShape
+--
 renderShape : Number -> Number -> Shape -> Svg msg
 renderShape hw hh (Shape realX realY a s alpha form) =
   let
