@@ -15,10 +15,10 @@ module Playground exposing
   --
   , Number
   --
-  , Clock
-  , zigzag
-  , wave
+  , Time
   , spin
+  , wave
+  , zigzag
   --
   , Computer
   , Mouse
@@ -60,8 +60,8 @@ module Playground exposing
 # Groups
 @docs group
 
-# Clock
-@docs Clock, zigzag, wave, spin
+# Time
+@docs Time, spin, wave, zigzag
 
 # Computer
 @docs Computer, Mouse, Screen, Keyboard, toX, toY, toXY
@@ -80,6 +80,9 @@ module Playground exposing
 
 ### Alternate Spellings of Gray
 @docs lightGray, gray, darkGray
+
+### Numbers
+@docs Number
 
 -}
 
@@ -148,7 +151,7 @@ type alias Computer =
   { mouse : Mouse
   , keyboard : Keyboard
   , screen : Screen
-  , clock : Clock
+  , time : Time
   }
 
 
@@ -164,6 +167,8 @@ type alias Mouse =
   }
 
 
+{-|
+-}
 type alias Number = Float
 
 
@@ -348,34 +353,90 @@ type alias Screen =
 
 
 
--- CLOCK
+-- TIME
 
 
-type Clock = Clock Time.Posix
+{-| The current time.
+
+Helpful when making an [`animation`](#animation) with functions like
+[`spin`](#spin), [`wave`](#wave), and [`zigzag`](#zigzag).
+-}
+type Time = Time Time.Posix
 
 
-zigzag : Number -> Number -> Number -> Clock -> Number
-zigzag period lo hi clock =
-  lo + (hi - lo) * abs (2 * toFrac period clock - 1)
+{-| Create an angle that cycles from 0 to 360 degrees over time.
+
+Here is an [`animation`](#animation) with a spinning triangle:
+
+    import Playground exposing (..)
+
+    main =
+      animation view
+
+    view time =
+      [ triangle orange 50
+          |> rotate (spin 8 time)
+      ]
+
+It will do a full rotation once every eight seconds. Try changing the `8` to
+a `2` to make it do a full rotation every two seconds. It moves a lot faster!
+-}
+spin : Number -> Time -> Number
+spin period time =
+  360 * toFrac period time
 
 
-wave : Number -> Number -> Number -> Clock -> Number
-wave period lo hi clock =
-  lo + (hi - lo) * (1 + cos (turns (toFrac period clock))) / 2
+{-| Smoothly wave between two numbers.
+
+Here is an [`animation`](#animation) with a circle that resizes:
+
+    import Playground exposing (..)
+
+    main =
+      animation view
+
+    view time =
+      [ circle lightBlue (wave 50 90 7 time)
+      ]
+
+The radius of the circle will cycles between 50 and 90 every seven seconds.
+It kind of looks like it is breathing.
+-}
+wave : Number -> Number -> Number -> Time -> Number
+wave lo hi period time =
+  lo + (hi - lo) * (1 + cos (turns (toFrac period time))) / 2
 
 
-spin : Number -> Clock -> Number
-spin period clock =
-  360 * toFrac period clock
+{-| Zig zag between two numbers.
+
+Here is an [`animation`](#animation) with a rectangle that tips back and forth:
+
+    import Playground exposing (..)
+
+    main =
+      animation view
+
+    view time =
+      [ rectangle lightGreen 20 100
+          |> rotate (zigzag -20 20 4 time)
+      ]
+
+It gets rotated by an angle. The angle cycles from -20 degrees to 20 degrees
+every four seconds.
+-}
+zigzag : Number -> Number -> Number -> Time -> Number
+zigzag lo hi period time =
+  lo + (hi - lo) * abs (2 * toFrac period time - 1)
 
 
-toFrac : Float -> Clock -> Float
-toFrac period (Clock posix) =
+toFrac : Float -> Time -> Float
+toFrac period (Time posix) =
   let
     ms = Time.posixToMillis posix
     p = period * 1000
   in
   toFloat (modBy (round p) ms) / p
+
 
 
 -- ANIMATION
@@ -391,27 +452,27 @@ try out an `animation`. Here is square that zigzags back and forth:
     main =
       animation view
 
-    view clock =
+    view time =
       [ square blue 40
-          |> moveX (zigzag 2 -100 100 clock)
+          |> moveX (zigzag -100 100 2 time)
       ]
 
 We need to define a `view` to make our animation work.
 
-Within `view` we can use functions like [`zigzag`](#zigzag), [`wave`](#wave),
-and [`spin`](#spin) to help us move and rotate our shapes.
+Within `view` we can use functions like [`spin`](#spin), [`wave`](#wave),
+and [`zigzag`](#zigzag) to move and rotate our shapes.
 -}
-animation : (Clock -> List Shape) -> Program () Animation Msg
-animation viewClock =
+animation : (Time -> List Shape) -> Program () Animation Msg
+animation viewFrame =
   let
     init () =
-      ( Animation E.Visible (toScreen 600 600) (Clock (Time.millisToPosix 0))
+      ( Animation E.Visible (toScreen 600 600) (Time (Time.millisToPosix 0))
       , Task.perform GotViewport Dom.getViewport
       )
 
-    view (Animation _ screen clock) =
+    view (Animation _ screen time) =
       { title = "Playground"
-      , body = [ render screen (viewClock clock) ]
+      , body = [ render screen (viewFrame time) ]
       }
 
     update msg model =
@@ -436,7 +497,7 @@ animation viewClock =
 
 
 type Animation =
-  Animation E.Visibility Screen Clock
+  Animation E.Visibility Screen Time
 
 
 animationSubscriptions : Sub Msg
@@ -449,12 +510,12 @@ animationSubscriptions =
 
 
 animationUpdate : Msg -> Animation -> Animation
-animationUpdate msg (Animation vis screen clock as state) =
+animationUpdate msg (Animation v s t as state) =
   case msg of
-    Tick time              -> Animation vis screen (Clock time)
-    VisibilityChanged visi -> Animation visi screen clock
-    GotViewport {viewport} -> Animation vis (toScreen viewport.width viewport.height) clock
-    Resized w h            -> Animation vis (toScreen (toFloat w) (toFloat h)) clock
+    Tick posix             -> Animation v s (Time posix)
+    VisibilityChanged vis  -> Animation vis s t
+    GotViewport {viewport} -> Animation v (toScreen viewport.width viewport.height) t
+    Resized w h            -> Animation v (toScreen (toFloat w) (toFloat h)) t
     KeyChanged _ _         -> state
     MouseMove _ _          -> state
     MouseClick             -> state
@@ -558,7 +619,7 @@ initialComputer =
   { mouse = Mouse 0 0 False False
   , keyboard = emptyKeyboard
   , screen = toScreen 600 600
-  , clock = Clock (Time.millisToPosix 0)
+  , time = Time (Time.millisToPosix 0)
   }
 
 
@@ -606,8 +667,8 @@ gameUpdate updateMemory msg (Game vis memory computer) =
     Tick time ->
       Game vis (updateMemory computer memory) <|
         if computer.mouse.click
-        then { computer | clock = Clock time, mouse = mouseClick False computer.mouse }
-        else { computer | clock = Clock time }
+        then { computer | time = Time time, mouse = mouseClick False computer.mouse }
+        else { computer | time = Time time }
 
     GotViewport {viewport} ->
       Game vis memory { computer | screen = toScreen viewport.width viewport.height }
@@ -1057,9 +1118,9 @@ moves back and forth:
     main =
       animation view
 
-    view clock =
+    view time =
       [ square purple 20
-          |> moveX (wave 4 -200 200 clock)
+          |> moveX (wave 4 -200 200 time)
       ]
 
 Using `moveX` feels a bit nicer here because the movement may be positive or negative.
@@ -1135,10 +1196,10 @@ invisible. Here is a shape that fades in and out:
     main =
       animation view
 
-    view clock =
+    view time =
       [ square orange 30
       , square blue 200
-          |> fade (zigzag 3 0 1 clock)
+          |> fade (zigzag 0 1 3 time)
       ]
 
 The number has to be between `0` and `1`, where `0` is totally transparent
