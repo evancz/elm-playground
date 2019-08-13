@@ -33,15 +33,15 @@ import Playground exposing (..)
 main =
   animation view
 
-view clock =
+view time =
   [ triangle orange 50
-      |> rotate (spin 8 clock)
+      |> rotate (spin 8 time)
   ]
 ```
 
 It will do a full spin every 8 seconds.
 
-Maybe try making a car with spinning octogons as wheels? Try using `wave` to move things back-and-forth? Try using `zigzag` to fade things in-and-out?
+Maybe try making a car with spinning octogons as wheels? Try using [`wave`](https://package.elm-lang.org/packages/evancz/elm-playground/latest/Playground#wave) to move things back-and-forth? Try using [`zigzag`](https://package.elm-lang.org/packages/evancz/elm-playground/latest/Playground#zigzag) to fade things in-and-out?
 
 
 ## Games
