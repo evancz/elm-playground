@@ -147,6 +147,17 @@ picture shapes =
 -- COMPUTER
 
 
+{-| When writing a [`game`](#game), you can look up all sorts of information
+about your computer:
+
+  - [`Mouse`](#Mouse) - Where is the mouse right now?
+  - [`Keyboard`](#Keyboard) - Are the arrow keys down?
+  - [`Screen`](#Screen) - How wide is the screen?
+  - [`Time`](#Time) - What time is it right now?
+
+So you can use expressions like `computer.mouse.x` and `computer.keyboard.enter`
+in games where you want some mouse or keyboard interaction.
+-}
 type alias Computer =
   { mouse : Mouse
   , keyboard : Keyboard
@@ -159,6 +170,27 @@ type alias Computer =
 -- MOUSE
 
 
+{-| Figure out what is going on with the mouse.
+
+You could draw a circle around the mouse with a program like this:
+
+    import Playground exposing (..)
+
+    main =
+      game view update 0
+
+    view computer memory =
+      [ circle yellow 40
+          |> moveX computer.mouse.x
+          |> moveY computer.mouse.y
+      ]
+
+    update computer memory =
+      memory
+
+You could also use `computer.mouse.down` to change the color of the circle
+while the mouse button is down.
+-}
 type alias Mouse =
   { x : Number
   , y : Number
@@ -167,7 +199,7 @@ type alias Mouse =
   }
 
 
-{-|
+{-| A number like `1` or `3.14` or `-120`.
 -}
 type alias Number = Float
 
