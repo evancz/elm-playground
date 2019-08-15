@@ -1299,7 +1299,7 @@ darkOrange =
 {-|-}
 lightBrown : Color
 lightBrown =
-  Hex "#9b96e"
+  Hex "#e9b96e"
 
 
 {-|-}
@@ -1371,7 +1371,7 @@ darkPurple =
 {-|-}
 lightRed : Color
 lightRed =
-  Hex "#f2929"
+  Hex "#ef2929"
 
 
 {-|-}
@@ -1389,7 +1389,7 @@ darkRed =
 {-|-}
 lightGrey : Color
 lightGrey =
-  Hex "#eeeec"
+  Hex "#eeeeec"
 
 
 {-|-}
@@ -1407,7 +1407,7 @@ darkGrey =
 {-|-}
 lightCharcoal : Color
 lightCharcoal =
-  Hex "#88a85"
+  Hex "#888a85"
 
 
 {-|-}
@@ -1440,7 +1440,7 @@ black =
 {-|-}
 lightGray : Color
 lightGray =
-  Hex "#eeeec"
+  Hex "#eeeeec"
 
 
 {-|-}
