@@ -1317,7 +1317,7 @@ darkBrown =
 {-|-}
 lightGreen : Color
 lightGreen =
-  Hex "#ae234"
+  Hex "#8ae234"
 
 
 {-|-}
