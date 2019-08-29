@@ -1493,100 +1493,175 @@ render screen shapes =
   let
     w = String.fromFloat screen.width
     h = String.fromFloat screen.height
-    hw = screen.right
-    hh = screen.top
+    x = String.fromFloat screen.left
+    y = String.fromFloat screen.bottom
   in
   svg
-    [ viewBox ("0 0 " ++ w ++ " " ++ h)
+    [ viewBox (x ++ " " ++ y ++ " " ++ w ++ " " ++ h)
     , H.style "position" "fixed"
     , H.style "top" "0"
     , H.style "left" "0"
     , width "100%"
     , height "100%"
     ]
-    (List.map (renderShape hw hh) shapes)
+    (List.map renderShape shapes)
 
 
 -- TODO try adding Svg.Lazy to renderShape
 --
-renderShape : Number -> Number -> Shape -> Svg msg
-renderShape hw hh (Shape realX realY a s alpha form) =
-  let
-    sx = realX + hw
-    sy = hh - realY
-  in
+renderShape : Shape -> Svg msg
+renderShape (Shape x y angle s alpha form) =
   case form of
-    Circle c sr ->
-      Svg.circle
-        (  r  (String.fromFloat sr)
-        :: fill (renderColor c)
-        :: transform (renderTransform sx sy a s)
-        :: renderAlpha alpha
-        )
-        []
+    Circle color radius ->
+      renderCircle color radius x y angle s alpha
 
-    Oval c w h ->
-      ellipse
-        (  rx (String.fromFloat (w / 2))
-        :: ry (String.fromFloat (h / 2))
-        :: fill (renderColor c)
-        :: transform (renderTransform sx sy a s)
-        :: renderAlpha alpha
-        )
-        []
+    Oval color width height ->
+      renderOval color width height x y angle s alpha
 
-    Rectangle c w h ->
-      rect
-        (  width (String.fromFloat w)
-        :: height (String.fromFloat h)
-        :: fill (renderColor c)
-        :: transform (renderRectTransform w h sx sy a s)
-        :: renderAlpha alpha
-        )
-        []
+    Rectangle color width height ->
+      renderRectangle color width height x y angle s alpha
 
-    Ngon c n r ->
-      Svg.polygon
-        (  points (toNgonPoints 0 n r "")
-        :: fill (renderColor c)
-        :: transform (renderTransform sx sy a s)
-        :: renderAlpha alpha
-        )
-        []
+    Ngon color n radius ->
+      renderNgon color n radius x y angle s alpha
 
-    Polygon c ps ->
-      Svg.polygon
-        (  points (List.foldl addPoint "" ps)
-        :: fill (renderColor c)
-        :: transform (renderTransform sx sy a s)
-        :: renderAlpha alpha
-        )
-        []
+    Polygon color points ->
+      renderPolygon color points x y angle s alpha
 
-    Image w h src ->
-      Svg.image
-        (  xlinkHref src
-        :: width (String.fromFloat w)
-        :: height (String.fromFloat h)
-        :: transform (renderRectTransform w h sx sy a s)
-        :: renderAlpha alpha
-        )
-        []
+    Image width height src ->
+      renderImage width height src x y angle s alpha
 
     Words color string ->
-      text_
-        (  textAnchor "middle"
-        :: dominantBaseline "central"
-        :: fill (renderColor color)
-        :: transform (renderTransform sx sy a s)
-        :: renderAlpha alpha
-        )
-        [ text string
-        ]
+      renderWords color string x y angle s alpha
 
     Group shapes ->
-      g (transform (renderTransform sx sy a s) :: renderAlpha alpha)
-        (List.map (renderShape hw hh) shapes)
+      g (transform (renderTransform x y angle s) :: renderAlpha alpha)
+        (List.map renderShape shapes)
+
+
+
+-- RENDER CIRCLE AND OVAL
+
+
+renderCircle : Color -> Number -> Number -> Number -> Number -> Number -> Number -> Svg msg
+renderCircle color radius x y angle s alpha =
+  Svg.circle
+    (  r (String.fromFloat radius)
+    :: fill (renderColor color)
+    :: transform (renderTransform x y angle s)
+    :: renderAlpha alpha
+    )
+    []
+
+
+renderOval : Color -> Number -> Number -> Number -> Number -> Number -> Number -> Number -> Svg msg
+renderOval color width height x y angle s alpha =
+  ellipse
+    (  rx (String.fromFloat (width  / 2))
+    :: ry (String.fromFloat (height / 2))
+    :: fill (renderColor color)
+    :: transform (renderTransform x y angle s)
+    :: renderAlpha alpha
+    )
+    []
+
+
+
+-- RENDER RECTANGLE AND IMAGE
+
+
+renderRectangle : Color -> Number -> Number -> Number -> Number -> Number -> Number -> Number -> Svg msg
+renderRectangle color w h x y angle s alpha =
+  rect
+    (  width (String.fromFloat w)
+    :: height (String.fromFloat h)
+    :: fill (renderColor color)
+    :: transform (renderRectTransform w h x y angle s)
+    :: renderAlpha alpha
+    )
+    []
+
+
+renderRectTransform : Number -> Number -> Number -> Number -> Number -> Number -> String
+renderRectTransform width height x y angle s =
+  renderTransform x y angle s
+  ++ " translate(" ++ String.fromFloat (-width/2) ++ "," ++ String.fromFloat (-height/2) ++ ")"
+
+
+renderImage : Number -> Number -> String -> Number -> Number -> Number -> Number -> Number -> Svg msg
+renderImage w h src x y angle s alpha =
+  Svg.image
+    (  xlinkHref src
+    :: width (String.fromFloat w)
+    :: height (String.fromFloat h)
+    :: transform (renderRectTransform w h x y angle s)
+    :: renderAlpha alpha
+    )
+    []
+
+
+
+-- RENDER NGON
+
+
+renderNgon : Color -> Int -> Number -> Number -> Number -> Number -> Number -> Number -> Svg msg
+renderNgon color n radius x y angle s alpha =
+  Svg.polygon
+    (  points (toNgonPoints 0 n radius "")
+    :: fill (renderColor color)
+    :: transform (renderTransform x y angle s)
+    :: renderAlpha alpha
+    )
+    []
+
+
+toNgonPoints : Int -> Int -> Float -> String -> String
+toNgonPoints i n radius string =
+  if i == n then
+    string
+  else
+    let
+      a = turns (toFloat i / toFloat n - 0.25)
+      x = radius * cos a
+      y = radius * sin a
+    in
+    toNgonPoints (i + 1) n radius (string ++ String.fromFloat x ++ "," ++ String.fromFloat y ++ " ")
+
+
+
+-- RENDER POLYGON
+
+
+renderPolygon : Color -> List (Number, Number) -> Number -> Number -> Number -> Number -> Number -> Svg msg
+renderPolygon color coordinates x y angle s alpha =
+  Svg.polygon
+    (  points (List.foldl addPoint "" coordinates)
+    :: fill (renderColor color)
+    :: transform (renderTransform x y angle s)
+    :: renderAlpha alpha
+    )
+    []
+
+
+addPoint : (Float, Float) -> String -> String
+addPoint (x,y) str =
+  str ++ String.fromFloat x ++ "," ++ String.fromFloat y ++ " "
+
+
+
+-- RENDER WORDS
+
+
+renderWords : Color -> String -> Number -> Number -> Number -> Number -> Number -> Svg msg
+renderWords color string x y angle s alpha =
+  text_
+    (  textAnchor "middle"
+    :: dominantBaseline "central"
+    :: fill (renderColor color)
+    :: transform (renderTransform x y angle s)
+    :: renderAlpha alpha
+    )
+    [ text string
+    ]
 
 
 
@@ -1623,43 +1698,11 @@ renderTransform : Number -> Number -> Number -> Number -> String
 renderTransform x y a s =
   if a == 0 then
     if s == 1 then
-      "translate(" ++ String.fromFloat x ++ "," ++ String.fromFloat y ++ ")"
+      "translate(" ++ String.fromFloat x ++ "," ++ String.fromFloat -y ++ ")"
     else
-      "translate(" ++ String.fromFloat x ++ "," ++ String.fromFloat y ++ ") scale(" ++ String.fromFloat s ++ ")"
+      "translate(" ++ String.fromFloat x ++ "," ++ String.fromFloat -y ++ ") scale(" ++ String.fromFloat s ++ ")"
   else
     if s == 1 then
-      "translate(" ++ String.fromFloat x ++ "," ++ String.fromFloat y ++ ") rotate(" ++ String.fromFloat -a ++ ")"
+      "translate(" ++ String.fromFloat x ++ "," ++ String.fromFloat -y ++ ") rotate(" ++ String.fromFloat -a ++ ")"
     else
-      "translate(" ++ String.fromFloat x ++ "," ++ String.fromFloat y ++ ") rotate(" ++ String.fromFloat -a ++ ") scale(" ++ String.fromFloat s ++ ")"
-
-
-
--- RENDER RECT TRANSFORM
-
-
-renderRectTransform : Number -> Number -> Number -> Number -> Number -> Number -> String
-renderRectTransform w h x y a s =
-  renderTransform x y a s
-  ++ " translate(" ++ String.fromFloat (-w/2) ++ "," ++ String.fromFloat (-h/2) ++ ")"
-
-
-
--- POLYGON POINTS
-
-
-addPoint : (Float, Float) -> String -> String
-addPoint (x,y) str =
-  str ++ String.fromFloat x ++ "," ++ String.fromFloat y ++ " "
-
-
-toNgonPoints : Int -> Int -> Float -> String -> String
-toNgonPoints i n r string =
-  if i == n then
-    string
-  else
-    let
-      a = turns (toFloat i / toFloat n - 0.25)
-      x = r * cos a
-      y = r * sin a
-    in
-    toNgonPoints (i + 1) n r (string ++ String.fromFloat x ++ "," ++ String.fromFloat y ++ " ")
+      "translate(" ++ String.fromFloat x ++ "," ++ String.fromFloat -y ++ ") rotate(" ++ String.fromFloat -a ++ ") scale(" ++ String.fromFloat s ++ ")"
