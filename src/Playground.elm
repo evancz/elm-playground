@@ -973,7 +973,7 @@ octagon color radius =
 
     main =
       picture
-        [ polygon [ (-10,-20), (0,100), (10,-20) ]
+        [ polygon black [ (-10,-20), (0,100), (10,-20) ]
         ]
 
 **Note:** If you [`rotate`](#rotate) a polygon, it will always rotate around
