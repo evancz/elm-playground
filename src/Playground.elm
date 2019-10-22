@@ -22,7 +22,6 @@ module Playground exposing
   --
   , Computer
   , Mouse
-  , Screen
   , Keyboard
   , toX
   , toY
@@ -35,6 +34,11 @@ module Playground exposing
   , white, lightGrey, grey, darkGrey, lightCharcoal, charcoal, darkCharcoal, black
   , rgb
   , lightGray, gray, darkGray
+  --
+  , Screen
+  , Animation
+  , Game
+  , Msg
   )
 
 {-|
