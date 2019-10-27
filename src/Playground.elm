@@ -952,12 +952,12 @@ hexagon color radius =
 
 {-| Make octogons:
 
-  import Playground exposing (..)
+    import Playground exposing (..)
 
-  main =
-    picture
-      [ octagon red 100
-      ]
+    main =
+      picture
+        [ octagon red 100
+        ]
 
 You give the color and radius, so each point of this stop sign is 100 pixels
 from the center.
