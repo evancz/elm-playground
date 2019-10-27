@@ -991,7 +991,7 @@ polygon color points =
 
     main =
       picture
-        [ image 96 96 "https://elm-lang.org/assets/turtle.gif"
+        [ image 96 96 "https://elm-lang.org/images/turtle.gif"
         ]
 
 You provide the width, height, and then the URL of the image you want to show.
