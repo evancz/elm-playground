@@ -3,7 +3,7 @@
     "name": "evancz/elm-playground",
     "summary": "A fun way to create pictures, animations, and games.",
     "license": "BSD-3-Clause",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "exposed-modules": [
         "Playground"
     ],
