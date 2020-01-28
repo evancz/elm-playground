@@ -19,6 +19,8 @@ module Playground exposing
   , spin
   , wave
   , zigzag
+  , delta
+  , now
   --
   , Computer
   , Mouse
@@ -61,7 +63,7 @@ module Playground exposing
 @docs group
 
 # Time
-@docs Time, spin, wave, zigzag
+@docs Time, spin, wave, zigzag, delta, now
 
 # Computer
 @docs Computer, Mouse, Screen, Keyboard, toX, toY, toXY
@@ -393,7 +395,7 @@ type alias Screen =
 Helpful when making an [`animation`](#animation) with functions like
 [`spin`](#spin), [`wave`](#wave), and [`zigzag`](#zigzag).
 -}
-type Time = Time Time.Posix
+type Time = Time Time.Posix Int
 
 
 {-| Create an angle that cycles from 0 to 360 degrees over time.
@@ -462,13 +464,60 @@ zigzag lo hi period time =
 
 
 toFrac : Float -> Time -> Float
-toFrac period (Time posix) =
+toFrac period (Time posix _) =
   let
     ms = Time.posixToMillis posix
     p = period * 1000
   in
   toFloat (modBy (round p) ms) / p
 
+{-| Time in milliseconds since the previous frame.
+
+Here is an example of a green square that
+just moves to the right precisely 1px per second,
+independent from frame rate:
+
+    import Playground exposing (..)
+
+    main =
+      game view update 0
+
+    view computer offset =
+      [ square green 40
+          |> moveRight offset
+      ]
+
+    update computer offset =
+      offset + 1 * (delta computer.time)
+-}
+delta : Time -> Int
+delta (Time _ d) =
+  d
+
+
+
+{-| Turn a `Time` time into the number of milliseconds since 1970 January 1 at 00:00:00 UTC. It was a Thursday.
+
+Here is example of text that shows current seconds:
+
+    import Playground exposing (..)
+
+    main =
+      animation view
+
+    view time =
+      let
+        s =
+          remainderBy (now time // 1000) 60
+              |> String.fromInt
+      in
+        words black s
+
+
+-}
+now : Time -> Int
+now (Time posix _) =
+  Time.posixToMillis posix
 
 
 -- ANIMATION
@@ -498,7 +547,7 @@ animation : (Time -> List Shape) -> Program () Animation Msg
 animation viewFrame =
   let
     init () =
-      ( Animation E.Visible (toScreen 600 600) (Time (Time.millisToPosix 0))
+      ( Animation E.Visible (toScreen 600 600) (Time (Time.millisToPosix 0) 0)
       , Task.perform GotViewport Dom.getViewport
       )
 
@@ -542,9 +591,9 @@ animationSubscriptions =
 
 
 animationUpdate : Msg -> Animation -> Animation
-animationUpdate msg (Animation v s t as state) =
+animationUpdate msg (Animation v s ((Time _ d ) as t) as state) =
   case msg of
-    Tick posix             -> Animation v s (Time posix)
+    Tick posix             -> Animation v s (Time posix d)
     VisibilityChanged vis  -> Animation vis s t
     GotViewport {viewport} -> Animation v (toScreen viewport.width viewport.height) t
     Resized w h            -> Animation v (toScreen (toFloat w) (toFloat h)) t
@@ -651,7 +700,7 @@ initialComputer =
   { mouse = Mouse 0 0 False False
   , keyboard = emptyKeyboard
   , screen = toScreen 600 600
-  , time = Time (Time.millisToPosix 0)
+  , time = Time (Time.millisToPosix 0) 0
   }
 
 
@@ -697,10 +746,14 @@ gameUpdate : (Computer -> memory -> memory) -> Msg -> Game memory -> Game memory
 gameUpdate updateMemory msg (Game vis memory computer) =
   case msg of
     Tick time ->
+      let
+        (Time timeWas _) = computer.time
+        d = (Time.posixToMillis time) - (Time.posixToMillis timeWas)
+      in
       Game vis (updateMemory computer memory) <|
         if computer.mouse.click
-        then { computer | time = Time time, mouse = mouseClick False computer.mouse }
-        else { computer | time = Time time }
+        then { computer | time = Time time d, mouse = mouseClick False computer.mouse }
+        else { computer | time = Time time d }
 
     GotViewport {viewport} ->
       Game vis memory { computer | screen = toScreen viewport.width viewport.height }
