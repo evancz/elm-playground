@@ -591,9 +591,9 @@ animationSubscriptions =
 
 
 animationUpdate : Msg -> Animation -> Animation
-animationUpdate msg (Animation v s ((Time _ d ) as t) as state) =
+animationUpdate msg (Animation v s ((Time timeWas _ ) as t) as state) =
   case msg of
-    Tick posix             -> Animation v s (Time posix d)
+    Tick posix             -> Animation v s (Time posix ((Time.posixToMillis posix) - (Time.posixToMillis timeWas)))
     VisibilityChanged vis  -> Animation vis s t
     GotViewport {viewport} -> Animation v (toScreen viewport.width viewport.height) t
     Resized w h            -> Animation v (toScreen (toFloat w) (toFloat h)) t
