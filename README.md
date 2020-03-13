@@ -67,7 +67,7 @@ update computer (x,y) =
 
 Every game has three important parts:
 
-1. `memory` - Store information. Our examples stores `(x,y)` coordinates.
+1. `memory` - Store information. Our example stores `(x,y)` coordinates.
 2. `update` - Update the memory based on mouse movements, key presses, etc. Our example moves the `(x,y)` coordinate around based on the arrow keys.
 3. `view` - Turn the memory into a picture. Our example just shows one blue square at the `(x,y)` coordinate we have been tracking in memory.
 
